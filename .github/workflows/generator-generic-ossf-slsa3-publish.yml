@@ -14,13 +14,13 @@ name: SLSA generic generator
 on:
   workflow_dispatch:
   release:
-    types: [created]
+    types: [published]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     outputs:
-      digests: ${{ steps.hash.outputs.digests }}
+      digests: ${{ steps.hash.outputs.hashes }}
 
     steps:
       - uses: actions/checkout@v4
@@ -32,9 +32,14 @@ jobs:
       # ========================================================
       - name: Build artifacts
         run: |
-            # These are some amazing artifacts.
-            echo "artifact1" > artifact1
-            echo "artifact2" > artifact2
+          zip -r learnxinyminutes-docs.zip . -x ".*" -x "*/.*" -x "lint/*"
+
+      - name: Upload artifact to release
+        if: github.event_name == 'release'
+        run: |
+          gh release upload ${{ github.event.release.tag_name }} learnxinyminutes-docs.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # ========================================================
       #
@@ -50,7 +55,7 @@ jobs:
           set -euo pipefail
 
           # List the artifacts the provenance will refer to.
-          files=$(ls artifact*)
+          files="learnxinyminutes-docs.zip"
           # Generate the subjects (base64 encoded).
           echo "hashes=$(sha256sum $files | base64 -w0)" >> "${GITHUB_OUTPUT}"
 
@@ -60,7 +65,7 @@ jobs:
       actions: read   # To read the workflow path.
       id-token: write # To sign the provenance.
       contents: write # To add assets to a release.
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v1.4.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a
     with:
       base64-subjects: "${{ needs.build.outputs.digests }}"
       upload-assets: true # Optional: Upload to a new release
